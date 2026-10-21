@@ -1,0 +1,275 @@
+<title>CV Draft Checker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: two-panel workbench — input on the left, verdict on the right; stacks on phones */
+:root{
+  --bg:#f3f5f4; --panel:#ffffff; --ink:#18221f; --muted:#5b6b66; --line:#d6dedb;
+  --accent:#0f6b5c; --accent-soft:#e2f0ec; --ok:#1d7a46; --ok-soft:#e5f4ea; --bad:#b3261e; --bad-soft:#fbe9e7;
+  --f-body:"IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101615; --panel:#172120; --ink:#e4ece9; --muted:#9aaba6; --line:#2a3734;
+  --accent:#5cc3ad; --accent-soft:#16312c; --ok:#6fd39a; --ok-soft:#163023; --bad:#ff8a80; --bad-soft:#3a1d1a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101615; --panel:#172120; --ink:#e4ece9; --muted:#9aaba6; --line:#2a3734;
+  --accent:#5cc3ad; --accent-soft:#16312c; --ok:#6fd39a; --ok-soft:#163023; --bad:#ff8a80; --bad-soft:#3a1d1a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.65;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 48px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+header h1{margin:0;font-size:1.6rem;font-weight:700;text-wrap:balance}
+header p{margin:4px 0 0;color:var(--muted);max-width:70ch}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.panel h2{margin:0;font-size:1rem;font-weight:600}
+label{font-size:.85rem;color:var(--muted)}
+textarea,input[type=text]{width:100%;font-family:var(--f-mono);font-size:13px;line-height:1.55;color:var(--ink);background:var(--bg);
+  border:1px solid var(--line);border-radius:8px;padding:10px;}
+textarea{min-height:360px;resize:vertical}
+textarea:focus,input:focus,button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--ink);padding:7px 12px;font:inherit;font-size:.85rem;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.btn{border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:8px;padding:8px 16px;font:inherit;font-weight:600;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent)}
+.verdict{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:8px;font-weight:600}
+.verdict.ok{background:var(--ok-soft);color:var(--ok)} .verdict.bad{background:var(--bad-soft);color:var(--bad)}
+.verdict .big{font-family:var(--f-mono);font-size:1.4rem}
+ul.checks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+ul.checks li{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;grid-template-columns:auto 1fr;gap:4px 10px}
+.pill{font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:99px;align-self:start;letter-spacing:.02em}
+.pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.bad{background:var(--bad-soft);color:var(--bad)}
+.detail{grid-column:2;white-space:pre-wrap;color:var(--muted);font-size:.85rem;min-width:0;overflow-wrap:anywhere}
+pre.clean{margin:0;white-space:pre-wrap;;font-family:var(--f-mono);font-size:13px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;max-height:340px;overflow:auto}
+.note{font-size:.82rem;color:var(--muted);border-top:1px dashed var(--line);padding-top:10px}
+.sample{font-size:.78rem;background:var(--accent-soft);color:var(--accent);padding:2px 8px;border-radius:99px}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>CV Draft Checker</h1>
+    <p>Paste the output of the CV Tailor assistant. The checker reads section 2 and tests whether every line carries a valid fact ID, whether a certificate, tool, number or city slipped in, and whether the length and format are right. Then it gives you a clean copy without the fact IDs, ready to paste into your CV.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="demo-h">
+    <h2 id="demo-h">Live demo</h2>
+    <p class="note" style="border:0;padding:0">Two ready messages for the messy IT support posting (fictional). Copy the first into a new ChatGPT chat, the second into a new Claude chat, then paste the Claude reply into the box below.</p>
+    <div class="row">
+      <button class="btn ghost" type="button" id="demoBefore">Copy message 1 · plain chat</button>
+      <button class="btn ghost" type="button" id="demoAfter">Copy message 2 · assistant</button>
+      <span class="sample" id="demoNote" style="background:transparent"></span>
+    </div>
+    <textarea id="demoBox" readonly hidden style="min-height:120px"></textarea>
+  </section>
+  <div class="grid">
+    <section class="panel" aria-labelledby="in-h">
+      <div class="row" style="justify-content:space-between">
+        <h2 id="in-h">Input</h2>
+        <span class="sample" id="sampleTag">Loaded example: messy-case test output (fictional posting)</span>
+      </div>
+      <div class="row">
+        <span class="seg" role="group" aria-label="Text type">
+          <button type="button" id="mAssist" aria-pressed="true">Assistant output</button>
+          <button type="button" id="mManual" aria-pressed="false">Text I wrote by hand</button>
+        </span>
+      </div>
+      <label for="src">Text</label>
+      <textarea id="src" spellcheck="false"></textarea>
+      <label for="ids">Fact IDs in your facts file (edit if you add facts)</label>
+      <input type="text" id="ids" value="F01,F02,F03,F04,F05,F06,F07,F08,F09,F10,F11,F12,F13,F14">
+      <div class="row">
+        <button class="btn" type="button" id="run">Check</button>
+        <button class="btn ghost" type="button" id="clear">Clear</button>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="out-h" aria-live="polite">
+      <h2 id="out-h">Result</h2>
+      <div id="verdict" class="verdict"></div>
+      <ul class="checks" id="checks"></ul>
+      <div class="row" style="justify-content:space-between">
+        <h2>Clean copy for the CV</h2>
+        <button class="btn ghost" type="button" id="copy">Copy</button>
+      </div>
+      <pre class="clean" id="clean"></pre>
+      <p class="note">This is an automatic check for common errors only. You still read every line, match it to its fact in the file, and decide whether to apply.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+// CV Draft Checker · check logic (runs in the browser and in Node)
+// Checks section 2 of the assistant output: fact IDs, forbidden terms, format rules.
+// It does not replace Rakan's review: it only catches common, mechanical errors.
+
+(function (root) {
+  const DEFAULT_FACT_IDS = Array.from({ length: 14 }, (_, i) => 'F' + String(i + 1).padStart(2, '0'));
+
+  // What Rakan does not claim + invented-number patterns + what the CV rules forbid
+  const FORBIDDEN = [
+    { re: /\bCCNA\b|\bCCNP\b|CompTIA|\bCISSP\b|\bOSCP\b|\bITIL\b|Cloud Practitioner|\bcertified\b/i, why: 'certification not completed (N04)' },
+    { re: /Active Directory|Windows Server|Microsoft 365|\bWindows\b/i, why: 'Windows / AD not claimed (N01)' },
+    { re: /\bGit\b|GitHub|version control/i, why: 'Git not claimed (N03)' },
+    { re: /\bSIEM\b|Splunk|QRadar|Palo Alto|Fortinet|firewall|penetration/i, why: 'security tools not claimed (N02)' },
+    // Fix after testing: the bare word 'switching' wrongly flagged 'switching by camera distance' in the AR project
+    { re: /\bVLANs?\b|\bOSPF\b|\bBGP\b|Cisco IOS|TCP\/IP|routing\s*(,|and|&)\s*switching|\brouters?\b|routing protocols?/i, why: 'protocols not written in the facts (N08)' },
+    { re: /\bAWS\b|\bAzure\b|\bGCP\b|Zabbix|SolarWinds|PowerShell|\bC#/i, why: 'tool or platform not in the facts' },
+    { re: /\b\d+\s*\+?\s*(years?|yrs|months?)\s+(of\s+)?experience|experience\s+of\s+\d+|\b\d+\+?\s*years?\b/i, why: 'years of experience not in the facts (N05)' },
+    { re: /\d+(\.\d+)?\s*%/, why: 'invented percentage (C02)' },
+    { re: /\b\d{2,}\s*\+?\s*(users|clients|devices|tickets|employees|endpoints|sites)\b/i, why: 'invented achievement number (C02)' },
+    { re: /Riyadh|Jeddah|Dammam|Khobar|Eastern Province|الرياض|جدة|الدمام/i, why: 'city mentioned (C04)' },
+    { re: /\bEnglish\b|\bfluent\b|\bbilingual\b/i, why: 'language level (C04)' },
+    { re: /[\w.+-]+@[\w-]+\.[\w.]+|\+?966|\b05\d{8}\b|linkedin\.com/i, why: 'contact details (C06)' },
+  ];
+
+  const TAG_RE = /\[\s*([FNC]\d{2}(?:\s*[,،]\s*[FNC]\d{2})*)\s*\]/g;
+
+  function extractSection2(text) {
+    const lines = text.split(/\r?\n/);
+    let start = -1, end = lines.length;
+    for (let i = 0; i < lines.length; i++) {
+      if (start < 0 && /^\s*#{1,6}\s*2\s*\)/.test(lines[i])) start = i + 1;
+      else if (start >= 0 && /^\s*#{1,6}\s*3\s*\)/.test(lines[i])) { end = i; break; }
+    }
+    if (start < 0) return null;
+    return lines.slice(start, end);
+  }
+
+  function isHeading(line) {
+    const t = line.trim();
+    return /^(PROFESSIONAL SUMMARY|SUMMARY|SKILLS|PROJECTS(\s*&\s*EXPERIENCE)?(\s*BULLETS)?|EXPERIENCE|EDUCATION|\[NAME\])\s*:?$/i.test(t);
+  }
+
+  function stripTags(s) { return s.replace(TAG_RE, '').replace(/\s+([.,;])/g, '$1').replace(/[ \t]+$/g, ''); }
+
+  function check(text, opts) {
+    opts = opts || {};
+    const mode = opts.mode || 'assistant'; // 'assistant' | 'manual'
+    const factIds = new Set((opts.factIds && opts.factIds.length ? opts.factIds : DEFAULT_FACT_IDS).map(s => s.trim().toUpperCase()));
+    const results = [];
+    let body;
+    if (mode === 'assistant') {
+      body = extractSection2(text);
+      if (!body) {
+        results.push({ ok: false, name: 'Section 2 found', detail: 'No "2)" heading found. Is the output complete, or did the assistant ask for a posting instead of drafting?' });
+        return { results, clean: '', passed: false };
+      }
+    } else {
+      body = text.split(/\r?\n/);
+    }
+    body = body.filter(l => !/^\s*```/.test(l));
+    const content = body.filter(l => l.trim() && !isHeading(l) && !/^\s*\(.*\)\s*$/.test(l));
+
+    // 1) every line carries a fact ID
+    if (mode === 'assistant') {
+      const untagged = content.filter(l => !/\[\s*F\d{2}/.test(l));
+      results.push({ ok: untagged.length === 0, name: 'Every line carries an F fact ID', detail: untagged.length ? 'Lines without evidence:\n' + untagged.map(l => '• ' + l.trim()).join('\n') : 'All ' + content.length + ' lines are cited' });
+
+      // 2) IDs exist in the facts file, and no N IDs
+      const bad = [], nTags = [];
+      content.forEach(l => {
+        let m; TAG_RE.lastIndex = 0;
+        while ((m = TAG_RE.exec(l))) {
+          m[1].split(/[,،]/).map(s => s.trim().toUpperCase()).forEach(id => {
+            if (id.startsWith('N')) nTags.push(id);
+            else if (id.startsWith('F') && !factIds.has(id)) bad.push(id);
+          });
+        }
+      });
+      results.push({ ok: bad.length === 0, name: 'Fact IDs exist in the file', detail: bad.length ? 'Unknown IDs: ' + [...new Set(bad)].join(', ') : 'All valid' });
+      results.push({ ok: nTags.length === 0, name: 'Nothing from the "do not claim" list', detail: nTags.length ? 'Used: ' + [...new Set(nTags)].join(', ') : 'None' });
+    }
+
+    // 3) forbidden terms and patterns
+    const hits = [];
+    content.forEach(l => {
+      const plain = stripTags(l);
+      const scan = plain.replace(/University of Tabuk/ig, '');
+      FORBIDDEN.forEach(f => { const m = scan.match(f.re); if (m) hits.push('"' + m[0] + '" — ' + f.why + '\n   in: ' + plain.trim()); });
+    });
+    results.push({ ok: hits.length === 0, name: 'No common forbidden claims', detail: hits.length ? hits.map(h => '• ' + h).join('\n') : 'Nothing caught (an automatic check of common patterns only)' });
+
+    // 4) summary length
+    const lines = body.map(l => l.trim());
+    const iSum = lines.findIndex(l => /^(PROFESSIONAL\s+)?SUMMARY\s*:?$/i.test(l));
+    const iSk = lines.findIndex(l => /^SKILLS\s*:?$/i.test(l));
+    let words = null;
+    if (iSum >= 0) {
+      const sumText = lines.slice(iSum + 1, iSk > iSum ? iSk : undefined).filter(l => l && !isHeading(l) && !l.startsWith('-')).join(' ');
+      words = stripTags(sumText).split(/\s+/).filter(w => /[A-Za-z0-9]/.test(w)).length;
+      results.push({ ok: words > 0 && words <= 50, name: 'Summary is 50 words or fewer', detail: 'Word count: ' + words });
+    } else {
+      results.push({ ok: false, name: 'Summary is 50 words or fewer', detail: 'No PROFESSIONAL SUMMARY heading found' });
+    }
+
+    // 5) number of bullets
+    const iProj = lines.findIndex(l => /^(PROJECTS|EXPERIENCE)/i.test(l));
+    const bullets = iProj >= 0 ? lines.slice(iProj + 1).filter(l => /^[-•*]\s+/.test(l)) : [];
+    results.push({ ok: bullets.length >= 4 && bullets.length <= 6, name: '4 to 6 bullets', detail: 'Bullets: ' + bullets.length });
+
+    // 6) no tables in the CV text
+    const tables = content.filter(l => /^\s*\|.*\|\s*$/.test(l));
+    results.push({ ok: tables.length === 0, name: 'No tables in the CV text', detail: tables.length ? 'Table found' : 'None' });
+
+    const clean = body.map(l => stripTags(l)).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    return { results, clean, passed: results.every(r => r.ok), words, bullets: bullets.length };
+  }
+
+  const api = { check, extractSection2, stripTags, DEFAULT_FACT_IDS };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.CvChecker = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+(function(){
+  const SAMPLE = "### 0) Input check\nInput type: one job posting (IT support, Najm Logistics Services).\nWarnings: [Contradictory posting] \"experience 0-2 years\" vs \"minimum 2 years in technical support\"; not assumed. The Windows/Active Directory line appears twice (merged).\n\n### 1) Requirements and match\n| # | Requirement | Required/Preferred | Status | Evidence |\n|---|---|---|---|---|\n| 1 | Bachelor in computer / computer eng. / IS | Required | Match | F01 |\n| 2 | Windows 10/11, Active Directory | Required | Not available | N01 |\n| 3 | Troubleshoot hardware and software | Required | Partial | F09, F11, F14 |\n| 4 | Networks (LAN/Wi-Fi), printers | Required | Partial | F10, F11 |\n| 5 | Support experience (0-2 vs 2+ years) | Required | Partial | F03, N05 |\n| 6 | Customer service skills | Not stated | Partial | F14 |\n| 7 | Git or any version control | Preferred | Not available | N03 |\n\n### 2) Tailored draft (ready to copy)\n```\nPROFESSIONAL SUMMARY\nComputer engineering graduate (B.Sc., 2026, GPA 4.13/5.00). [F01] Networking fundamentals and hands-on network setup and installation. [F10, F11] Four-month IT internship at MEWA. [F03] Diagnosed and fixed tracking and display issues in an AR project; problem solving and teamwork. [F09, F14]\n\nSKILLS\nTroubleshooting and problem solving [F09, F14]; networking fundamentals [F10]; hands-on network setup [F11]; Linux basics [F13]\nPython basics, SQL basics, C++, database fundamentals [F12]; communication and teamwork [F14]\n\nPROJECTS & EXPERIENCE BULLETS\n- Designed and built a complete enterprise network in a network simulator. [F10]\n- Performed hands-on network setup and installation (self-taught). [F11]\n- Diagnosed and fixed tracking and display issues in a Unity 6 + Vuforia AR application. [F08, F09]\n- Built an IoT early-warning system for gas, smoke and high temperature with three alert states and threshold hysteresis. [F05, F07]\n- Served as IT Intern, Ministry of Environment, Water and Agriculture (MEWA), for 4 months. [F03]\n- Completed Networking, Network Security 101, Python 101 and SQL 101 courses. [F02]\n```\n\n### 3) Gaps (not written in the CV)\n- Windows 10/11 and Active Directory · N01 · Not claimed; practise in a home lab or take a course, and present it as a learning plan.\n- Hardware troubleshooting (part of 3) · not in the file · Add real examples to the file if any; otherwise state a learning plan.\n- LAN/Wi-Fi specifics and printers (part of 4) · not in the file · Learn basic printer setup; state it as a learning plan.\n- 2-year support minimum, if it applies · N05 · Ask HR which figure applies; present the internship (F03) honestly.\n- Customer-facing experience (part of 6) · not in the file · Add real examples to the file if any.\n- Git (Preferred) · N03 · Optional: learn basic Git; not claimed.\n\n### 4) Rakan's decision\n- Fit: 4 of 5 required items matched or partial → Medium (the core Windows/Active Directory item is missing and the Partial items are thin).\n- [Contradictory posting]: 0-2 years vs minimum 2 years; confirm with the employer.\n- Questions for Rakan:\n  1. What tasks did you do at MEWA? (F04 is empty, so none are written.)\n  2. Can you work shifts?\n\n### 5) Self-check\n- Every line in section 2 carries an F fact ID: yes\n- No N ID and nothing from the \"do not claim\" list in section 2: yes\n- Summary word count: 41\n- Number of bullets: 6\n- No city, no English level, no contact details: yes\n";
+  const $ = id => document.getElementById(id);
+  let mode = 'assistant';
+  $('src').value = SAMPLE;
+  function setMode(m){ mode=m; $('mAssist').setAttribute('aria-pressed', m==='assistant'); $('mManual').setAttribute('aria-pressed', m==='manual'); $('ids').disabled = m==='manual'; run(); }
+  $('mAssist').onclick=()=>setMode('assistant'); $('mManual').onclick=()=>setMode('manual');
+  $('src').addEventListener('input',()=>{ $('sampleTag').hidden=true; });
+  function run(){
+    const text=$('src').value;
+    const list=$('checks'); list.innerHTML='';
+    if(!text.trim()){ $('verdict').className='verdict'; $('verdict').textContent='Paste some text to check.'; $('clean').textContent=''; return; }
+    const ids=$('ids').value.split(/[,،\s]+/).filter(Boolean);
+    const r=CvChecker.check(text,{mode,factIds:ids});
+    const passed=r.results.filter(x=>x.ok).length;
+    $('verdict').className='verdict '+(r.passed?'ok':'bad');
+    $('verdict').innerHTML='<span class="big">'+passed+' / '+r.results.length+'</span><span>'+(r.passed?'Passed the automatic checks. Review the meaning yourself, then approve.':'Not passed. Fix the lines listed, or give the assistant specific feedback on them.')+'</span>';
+    r.results.forEach(x=>{
+      const li=document.createElement('li');
+      const p=document.createElement('span'); p.className='pill '+(x.ok?'ok':'bad'); p.textContent=x.ok?'Pass':'Review';
+      const n=document.createElement('strong'); n.textContent=x.name;
+      const d=document.createElement('div'); d.className='detail'; d.textContent=x.detail;
+      li.append(p,n,d); list.append(li);
+    });
+    $('clean').textContent=r.clean;
+  }
+  $('run').onclick=run;
+  $('clear').onclick=()=>{ $('src').value=''; $('sampleTag').hidden=true; run(); $('src').focus(); };
+  $('copy').onclick=()=>{
+    const t=$('clean').textContent;
+    const done=()=>{ $('copy').textContent='Copied'; setTimeout(()=>$('copy').textContent='Copy',1500); };
+    const fallback=()=>{ const s=window.getSelection(), rg=document.createRange(); rg.selectNodeContents($('clean')); s.removeAllRanges(); s.addRange(rg); $('copy').textContent='Text selected, copy it'; };
+    try{ navigator.clipboard.writeText(t).then(done,fallback);}catch(e){fallback();}
+  };
+  run();
+})();
+</script>
+<script>
+(function(){
+  const M={b:"Tailor my CV to fit this job posting.\n\nMY CV:\n[NAME]\nComputer Engineering Graduate\n\nPROFESSIONAL SUMMARY\nComputer Engineering graduate with a strong interest in networking, IT and cybersecurity. Built a complete enterprise network in Cisco Packet Tracer and an IoT early-warning system. Fast learner who works well under pressure.\n\nEDUCATION\nB.Sc. in Computer Engineering, University of Tabuk, 2026. GPA 4.13 / 5.00\n\nEXPERIENCE\nIT Intern, Ministry of Environment, Water and Agriculture (MEWA), 4 months\n- Set up and installed computer equipment.\n- Worked on network connections and cabling.\n\nPROJECTS\nIoT Early-Warning System (Graduation Project)\n- Monitors gas leaks, smoke and high temperature using Arduino, MQ-2 and DHT22 sensors.\n- Three alert states (Normal / Warning / Danger) with hysteresis; OLED display, buzzer and phone notification via ESP8266.\n- Programmed in C++ with Adafruit libraries.\n\nAR Saudi Landmarks (Unity 6 + Vuforia)\n- Displays past and present 3D models of Saudi landmarks on a printed image target, switching by camera distance.\n- Fixed tracking and display issues during testing.\n\nSKILLS\nNetworking fundamentals; network setup and installation; C++; Python basics; SQL basics; Linux basics; problem solving; teamwork; communication.\n\nCOURSES\nNetworking (Satr), Python 101, SQL 101, Network Security 101\n\nJOB POSTING:\nIT support staff needed!!  (Najm Logistics Services - fictional)\nqualification: bachelor in computer / computer eng / information systems\n- experience in Windows 10/11 and Active Directory\n- troubleshooting hardware & software issues\n- experiance in windows 10/11 and active directory\n- knowlege of networks LAN/WiFi  , printers\n-  prefered: Git or any version control\n- experience 0-2 years ( fresh grads can apply)\n- minimum 2 years experience in technical support\n- shift work\n* good customer service skills  dealing w/ customers\napply: send CV to hr@najm-example.sa",a:"Use the cv-tailor skill on this posting:\n\nIT support staff needed!!  (Najm Logistics Services - fictional)\nqualification: bachelor in computer / computer eng / information systems\n- experience in Windows 10/11 and Active Directory\n- troubleshooting hardware & software issues\n- experiance in windows 10/11 and active directory\n- knowlege of networks LAN/WiFi  , printers\n-  prefered: Git or any version control\n- experience 0-2 years ( fresh grads can apply)\n- minimum 2 years experience in technical support\n- shift work\n* good customer service skills  dealing w/ customers\napply: send CV to hr@najm-example.sa"};
+  const box=document.getElementById('demoBox'), note=document.getElementById('demoNote');
+  function cp(t){ const ok=()=>{note.textContent='Copied.';}; const fb=()=>{box.hidden=false; box.value=t; box.focus(); box.select(); note.textContent='Selected below. Press Ctrl+C.';};
+    try{ navigator.clipboard.writeText(t).then(ok,fb);}catch(e){fb();} }
+  document.getElementById('demoBefore').onclick=()=>cp(M.b);
+  document.getElementById('demoAfter').onclick=()=>cp(M.a);
+})();
+</script>
