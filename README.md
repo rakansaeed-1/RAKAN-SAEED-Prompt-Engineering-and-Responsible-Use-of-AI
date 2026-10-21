@@ -15,3 +15,4 @@ A custom assistant that tailors my CV to a job posting using only my verified pr
 - `skill_cv-tailor_SKILL.md`: the assistant's instructions
 - `cv_checker.html`: checker for the assistant's output
 - `demo_backup_screenshots/`: backup screenshots of the live demo
+- `test_screenshots/`: screenshots of three runs of the assistant (good fit, medium fit, impossible job) and the checker results
