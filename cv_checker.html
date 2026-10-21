@@ -43,6 +43,7 @@ ul.checks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;
 ul.checks li{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;grid-template-columns:auto 1fr;gap:4px 10px}
 .pill{font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:99px;align-self:start;letter-spacing:.02em}
 .pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.na{background:var(--accent-soft);color:var(--muted)}
 .detail{grid-column:2;white-space:pre-wrap;color:var(--muted);font-size:.85rem;min-width:0;overflow-wrap:anywhere}
 pre.clean{margin:0;white-space:pre-wrap;;font-family:var(--f-mono);font-size:13px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;max-height:340px;overflow:auto}
 .note{font-size:.82rem;color:var(--muted);border-top:1px dashed var(--line);padding-top:10px}
@@ -164,6 +165,29 @@ pre.clean{margin:0;white-space:pre-wrap;;font-family:var(--f-mono);font-size:13p
     body = body.filter(l => !/^\s*```/.test(l));
     const content = body.filter(l => l.trim() && !isHeading(l) && !/^\s*\(.*\)\s*$/.test(l));
 
+    // 0) No-draft case (skill step 3, no-draft rule): no Required item is Match or Partial, so section 2
+    //    holds only the marker "NO DRAFT — [Low fit]". Writing a draft here would be the error.
+    //    "Not produced" is accepted too, for outputs made before the marker was added.
+    const NO_DRAFT_RE = /^\s*(\*\*)?\s*(NO DRAFT\b|Not produced\b)/i;
+    if (mode === 'assistant' && content.length && NO_DRAFT_RE.test(content[0])) {
+      const lowFit = /\[\s*Low fit\s*\]/i.test(text);
+      const extra = content.slice(1).filter(l => /\[\s*F\d{2}/.test(l) || /^[-•*]\s+/.test(l.trim()) || isHeading(l));
+      const hits = [];
+      content.forEach(l => {
+        const plain = stripTags(l);
+        FORBIDDEN.forEach(f => { const m = plain.match(f.re); if (m) hits.push('"' + m[0] + '" — ' + f.why + '\n   in: ' + plain.trim()); });
+      });
+      const NA = 'Not applicable: no draft was written';
+      results.push({ ok: true, na: true, name: 'Every line carries an F fact ID', detail: NA });
+      results.push({ ok: true, na: true, name: 'Fact IDs exist in the file', detail: NA });
+      results.push({ ok: true, na: true, name: 'Summary is 50 words or fewer', detail: NA });
+      results.push({ ok: true, na: true, name: '4 to 6 bullets', detail: NA });
+      results.push({ ok: lowFit, name: '[Low fit] tag present', detail: lowFit ? 'Found: the assistant flagged the posting as low fit' : 'A no-draft output must carry the [Low fit] tag in section 0 or 4' });
+      results.push({ ok: extra.length === 0, name: 'No CV lines after the NO DRAFT marker', detail: extra.length ? 'Unexpected CV content:\n' + extra.map(l => '• ' + l.trim()).join('\n') : 'None' });
+      results.push({ ok: hits.length === 0, name: 'No common forbidden claims', detail: hits.length ? hits.map(h => '• ' + h).join('\n') : 'Nothing caught' });
+      return { results, clean: '', passed: results.every(r => r.ok), noDraft: true, words: 0, bullets: 0 };
+    }
+
     // 1) every line carries a fact ID
     if (mode === 'assistant') {
       const untagged = content.filter(l => !/\[\s*F\d{2}/.test(l));
@@ -240,17 +264,22 @@ pre.clean{margin:0;white-space:pre-wrap;;font-family:var(--f-mono);font-size:13p
     if(!text.trim()){ $('verdict').className='verdict'; $('verdict').textContent='Paste some text to check.'; $('clean').textContent=''; return; }
     const ids=$('ids').value.split(/[,،\s]+/).filter(Boolean);
     const r=CvChecker.check(text,{mode,factIds:ids});
-    const passed=r.results.filter(x=>x.ok).length;
+    const scored=r.results.filter(x=>!x.na);
+    const passed=scored.filter(x=>x.ok).length;
     $('verdict').className='verdict '+(r.passed?'ok':'bad');
-    $('verdict').innerHTML='<span class="big">'+passed+' / '+r.results.length+'</span><span>'+(r.passed?'Passed the automatic checks. Review the meaning yourself, then approve.':'Not passed. Fix the lines listed, or give the assistant specific feedback on them.')+'</span>';
+    let msg;
+    if(r.noDraft) msg=r.passed?'Passed: no draft (correct). The posting does not fit your facts, so nothing should go in the CV.':'Not passed. The assistant wrote no draft, but the items marked Review need fixing.';
+    else msg=r.passed?'Passed the automatic checks. Review the meaning yourself, then approve.':'Not passed. Fix the lines listed, or give the assistant specific feedback on them.';
+    $('verdict').innerHTML='<span class="big">'+passed+' / '+scored.length+'</span><span>'+msg+'</span>';
     r.results.forEach(x=>{
       const li=document.createElement('li');
-      const p=document.createElement('span'); p.className='pill '+(x.ok?'ok':'bad'); p.textContent=x.ok?'Pass':'Review';
+      const p=document.createElement('span'); p.className='pill '+(x.na?'na':(x.ok?'ok':'bad')); p.textContent=x.na?'N/A':(x.ok?'Pass':'Review');
       const n=document.createElement('strong'); n.textContent=x.name;
       const d=document.createElement('div'); d.className='detail'; d.textContent=x.detail;
       li.append(p,n,d); list.append(li);
     });
-    $('clean').textContent=r.clean;
+    $('clean').textContent=r.noDraft?'(No draft: nothing to copy for this posting.)':r.clean;
+    $('copy').disabled=!!r.noDraft;
   }
   $('run').onclick=run;
   $('clear').onclick=()=>{ $('src').value=''; $('sampleTag').hidden=true; run(); $('src').focus(); };
